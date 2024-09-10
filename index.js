@@ -1,7 +1,6 @@
 const puppeteer = require('puppeteer')
 const fs = require('fs')
 const path = require('path')
-const archiver = require('archiver')
 
 const url = process.argv[2]
 const regionArgName = process.argv[3]
@@ -15,28 +14,13 @@ if (url && regionArgName) {
   console.log('Пожалуйста, укажите URL и регион.')
 }
 
-function zipDirectory(sourceDir, outputZip) {
-  const archive = archiver('zip', { zlib: { level: 9 } })
-  const stream = fs.createWriteStream(outputZip)
-
-  return new Promise((resolve, reject) => {
-    archive
-      .directory(sourceDir, false)
-      .on('error', err => reject(err))
-      .pipe(stream)
-
-    stream.on('close', () => resolve())
-    archive.finalize()
-  })
-}
 
 function sanitizeFilename(filename) {
   return filename.replace(/[\<>:\"\/|?*.]+/g, '');
 }
 
 function getRegionDirectoryPath(region) {
-  const safeRegionName = region.replace(/[<>:"\/\\|?*]+/g, '')
-  const dirPath = path.join(__dirname, safeRegionName, '/')
+  const dirPath = path.join(__dirname, sanitizeFilename(region), '/')
 
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true })
@@ -56,7 +40,7 @@ async function scrapeProduct(url, region) {
   const regionDirectoryPath = getRegionDirectoryPath(regionArgName)
 
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: false,
     defaultViewport: {
       width: 1920,
       height: 1080
@@ -130,20 +114,6 @@ async function scrapeProduct(url, region) {
   fs.writeFileSync(`${regionDirectoryPath}product.txt`, productText.trim())
 
   await browser.close()
-
-  const sourceFolder = path.join(__dirname, regionDirectoryPath)
-  const outputZipPath = path.join(__dirname, `${sanitizeFilename(regionArgName)}.zip`)
-
-  zipDirectory(sourceFolder, outputZipPath)
-    .then(() => console.log('Архив успешно создан'))
-    .catch(err => console.error('Ошибка при создании архива:', err))
-
-  // Раскоментировать если нужно оставить только архив без начальной папки с результами
-  // fs.rm(regionDirectoryPath, { recursive: true, force: true }, (err) => {
-  //   if (err) {
-  //     console.error(`Ошибка при удалении папки: ${err}`)
-  //   }
-  // })
 }
 
 
